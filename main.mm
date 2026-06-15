@@ -11,9 +11,10 @@
 */
 
 #import <Cocoa/Cocoa.h>
+#import "CalcController.h"
 
 // создаём цветную кнопку с белой подписью
-static NSButton *makeButton(NSString *title, NSColor *color) {
+static NSButton *makeButton(NSString *title, NSColor *color, CalcController *calc, SEL action) {
     NSButton *button = [[NSButton alloc] init];
     button.bordered = NO;
     button.wantsLayer = YES;
@@ -24,6 +25,8 @@ static NSButton *makeButton(NSString *title, NSColor *color) {
             attributes:@{ NSForegroundColorAttributeName: NSColor.whiteColor,
                           NSFontAttributeName: [NSFont systemFontOfSize:22
                                                  weight:NSFontWeightMedium] }];
+    button.target = calc;
+    button.action = action;
     return button;
 }
 
@@ -45,6 +48,8 @@ int main(int argc, const char *argv[]) {
         window.backgroundColor = [NSColor colorWithWhite:0.12 alpha:1.0];
         [window center];
 
+        CalcController *calc = [[CalcController alloc] init];
+
         // поле вывода выражения и результата
         CGFloat margin = 16;
         NSTextField *display = [[NSTextField alloc] initWithFrame:
@@ -58,6 +63,7 @@ int main(int argc, const char *argv[]) {
         display.font = [NSFont monospacedDigitSystemFontOfSize:34
                                                         weight:NSFontWeightLight];
         display.cell.lineBreakMode = NSLineBreakByTruncatingHead;
+        calc.display = display;
         [window.contentView addSubview:display];
 
         // цвета: цифры серые, операторы оранжевые, спец тёмные, равно зелёное
@@ -66,13 +72,26 @@ int main(int argc, const char *argv[]) {
         NSColor *orange = [NSColor colorWithCalibratedRed:0.95 green:0.55 blue:0.10 alpha:1.0];
         NSColor *green  = [NSColor colorWithCalibratedRed:0.20 green:0.65 blue:0.35 alpha:1.0];
 
-        struct Button { NSString *title; NSColor *color; };
+        struct Button { NSString *title; NSColor *color; SEL action; };
         Button layout[5][5] = {
-            {{@"C", dark}, {@"⌫", dark}, {@"(", dark}, {@")", dark}, {@"√", orange}},
-            {{@"7", grey}, {@"8", grey}, {@"9", grey}, {@"/", orange}, {@"^", orange}},
-            {{@"4", grey}, {@"5", grey}, {@"6", grey}, {@"*", orange}, {@"-", orange}},
-            {{@"1", grey}, {@"2", grey}, {@"3", grey}, {@"+", orange}, {@"=", green}},
-            {{@"0", grey}, {@".", grey}, {@",", grey}, {nil, nil}, {nil, nil}},
+            {{@"C", dark,   @selector(clear:)},     {@"⌫", dark,   @selector(backspace:)},
+             {@"(", dark,   @selector(append:)},    {@")", dark,   @selector(append:)},
+             {@"√", orange, @selector(append:)}},
+
+            {{@"7", grey,   @selector(append:)},     {@"8", grey,   @selector(append:)},
+             {@"9", grey,   @selector(append:)},     {@"/", orange, @selector(append:)},
+             {@"^", orange, @selector(append:)}},
+
+            {{@"4", grey,   @selector(append:)},     {@"5", grey,   @selector(append:)},
+             {@"6", grey,   @selector(append:)},     {@"*", orange, @selector(append:)},
+             {@"-", orange, @selector(append:)}},
+
+            {{@"1", grey,   @selector(append:)},     {@"2", grey,   @selector(append:)},
+             {@"3", grey,   @selector(append:)},     {@"+", orange, @selector(append:)},
+             {@"=", green,  @selector(evaluate:)}},
+
+            {{@"0", grey,   @selector(append:)},     {@".", grey,   @selector(append:)},
+             {@",", grey,   @selector(append:)},     {nil, nil, nil}, {nil, nil, nil}},
         };
 
         // раскладываем кнопки сеткой 5 на 5
@@ -91,7 +110,7 @@ int main(int argc, const char *argv[]) {
                 CGFloat w = buttonWidth;
                 if (row == 4 && col == 0) w = buttonWidth * 2 + gap;  // ноль на две клетки
 
-                NSButton *button = makeButton(item.title, item.color);
+                NSButton *button = makeButton(item.title, item.color, calc, item.action);
                 button.frame = NSMakeRect(x, y, w, buttonHeight);
                 [window.contentView addSubview:button];
 
