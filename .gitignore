@@ -1,0 +1,4 @@
+/Calculator
+*.o
+.DS_Store
+build/
