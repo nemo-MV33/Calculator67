@@ -15,7 +15,7 @@
 #include <stdexcept>
 #include <cmath>
 
-using namespace std;  // чтобы писать string вместо std::string и т.д.
+using namespace std;
 
 /*
 Разбор выражения "рекурсивным спуском": на каждый приоритет операций — своя функция, и они
@@ -34,8 +34,9 @@ public:
     double evaluate() {
         double value = parseExpr();
         // если после разбора остались символы — значит во вводе ошибка
-        if (pos != (int)text.size())
+        if (pos != (int)text.size()) {
             throw runtime_error("Лишний символ в выражении");
+        }
         return value;
     }
 
@@ -43,17 +44,20 @@ private:
     string text;  // разбираемое выражение
     int pos;      // на каком символе мы сейчас стоим
 
-    // посмотреть текущий символ, НЕ сдвигаясь дальше (0 — строка кончилась)
+    // посмотреть текущий символ, не сдвигаясь дальше (0 — строка кончилась)
     char currentChar() {
-        if (pos < (int)text.size())
+        if (pos < (int)text.size()) {
             return text[pos];
+        }
         return 0;
     }
 
     // взять текущий символ и перейти к следующему
     char readChar() {
         char c = currentChar();
-        if (c != 0) pos++;
+        if (c != 0) {
+            pos++;
+        }
         return c;
     }
 
@@ -78,8 +82,11 @@ private:
         while (currentChar() == '+' || currentChar() == '-') {
             char op = readChar();
             double right = parseTerm();
-            if (op == '+') value = value + right;
-            else           value = value - right;
+            if (op == '+') {
+                value = value + right;
+            } else {
+                value = value - right;
+            }
         }
         return value;
     }
@@ -94,7 +101,9 @@ private:
                 value = value * right;
             } else {
                 // на ноль делить нельзя — сообщаем об ошибке
-                if (right == 0) throw runtime_error("Деление на ноль");
+                if (right == 0) {
+                    throw runtime_error("Деление на ноль");
+                }
                 value = value / right;
             }
         }
@@ -107,8 +116,9 @@ private:
             readChar();
             return -parseUnary();
         }
-        if (matchRoot())
+        if (matchRoot()) {
             return sqrt(parseUnary());
+        }
         return parsePower();
     }
 
@@ -128,8 +138,9 @@ private:
         if (currentChar() == '(') {
             readChar();
             double value = parseExpr();
-            if (readChar() != ')')
+            if (readChar() != ')') {
                 throw runtime_error("Нет закрывающей скобки");
+            }
             return value;
         }
         return parseNumber();
@@ -142,8 +153,9 @@ private:
             number += text[pos];
             pos++;
         }
-        if (number == "")
+        if (number == "") {
             throw runtime_error("Ожидалось число");
+        }
         return stod(number);  // stod = string to double, переводит "3.14" в 3.14
     }
 };
@@ -175,7 +187,9 @@ private:
                             @"42": @"assets/42.gif",
                             @"52": @"assets/52.gif" };
     NSString *file = gifs[result];
-    if (file == nil) return;                                       // для этого числа гифки нет
+    if (file == nil) {
+        return;                                                    // для этого числа гифки нет
+    }
     self.gif.image = [[NSImage alloc] initWithContentsOfFile:file]; // загружаем из файла
     self.gif.hidden = NO;                                          // показываем
 }
@@ -204,8 +218,13 @@ private:
 // кнопка ⌫ — удаляем последний символ
 - (void)backspace:(NSButton *)sender {
     NSString *value = [self currentText];
-    if (self.hasResult) { [self clear:sender]; return; }  // после ответа стираем всё сразу
-    if (value.length == 0) return;                         // стирать нечего
+    if (self.hasResult) {
+        [self clear:sender];
+        return;
+    }
+    if (value.length == 0) {
+        return;                         // стирать нечего
+    }
 
     // берём диапазон последнего символа целиком — чтобы √ (3 байта) удалялся за раз
     NSRange last = [value rangeOfComposedCharacterSequenceAtIndex:value.length - 1];
@@ -217,7 +236,9 @@ private:
     // берём текст с экрана и переводим из NSString в обычную C++ строку.
     // ?: "" — если UTF8String вдруг вернёт nullptr, подставляем пустую строку
     string expr([self currentText].UTF8String ?: "");
-    if (expr.empty()) return;
+    if (expr.empty()) {
+        return;
+    }
 
     // try/catch: если в выражении ошибка, Parser кидает исключение,
     // и мы ловим его здесь, показывая текст ошибки вместо вылета программы
@@ -343,20 +364,26 @@ int main(int argc, const char *argv[]) {
         for (int row = 0; row < 5; ++row) {
             for (int col = 0; col < 5; ++col) {
                 Button item = layout[row][col];
-                if (item.title == nil) continue;  // пустые клетки пропускаем
+                if (item.title == nil) {
+                    continue;                      // пустые клетки пропускаем
+                }
 
                 // в Cocoa точка отсчёта (0,0) — это левый НИЖНИЙ угол,
                 // поэтому y отсчитываем сверху вниз через top минус строка
                 CGFloat x = margin + col * (buttonWidth + gap);
                 CGFloat y = top - buttonHeight - row * (buttonHeight + gap);
                 CGFloat w = buttonWidth;
-                if (row == 4 && col == 0) w = buttonWidth * 2 + gap;  // ноль на две клетки
+                if (row == 4 && col == 0) {
+                    w = buttonWidth * 2 + gap;     // ноль на две клетки
+                }
 
                 NSButton *button = makeButton(item.title, item.color, calc, item.action);
                 button.frame = NSMakeRect(x, y, w, buttonHeight);
                 [window.contentView addSubview:button];
 
-                if (row == 4 && col == 0) col++;  // следующую клетку занял широкий ноль
+                if (row == 4 && col == 0) {
+                    col++;                         // следующую клетку занял широкий ноль
+                }
             }
         }
 
