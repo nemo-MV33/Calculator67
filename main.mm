@@ -11,10 +11,186 @@
 */
 
 #import <Cocoa/Cocoa.h>
-#import "CalcController.h"
+#include <string>
+#include <stdexcept>
+#include <cmath>
+#include <cctype>
+#include <algorithm>
+
+// разбор выражения рекурсивным спуском с учётом приоритетов и скобок
+class Parser {
+public:
+    explicit Parser(const std::string &text) : text(text), pos(0) {}
+
+    double evaluate() {
+        double value = parseExpr();
+        skipSpaces();
+        if (pos != text.size())
+            throw std::runtime_error("Лишний символ в выражении");
+        return value;
+    }
+
+private:
+    const std::string text;
+    size_t pos;
+
+    void skipSpaces() {
+        while (pos < text.size() && std::isspace((unsigned char)text[pos]))
+            ++pos;
+    }
+
+    char peek() {
+        skipSpaces();
+        return pos < text.size() ? text[pos] : '\0';
+    }
+
+    char get() {
+        char c = peek();
+        if (c != '\0') ++pos;
+        return c;
+    }
+
+    // сложение и вычитание — самый низкий приоритет
+    double parseExpr() {
+        double value = parseTerm();
+        for (;;) {
+            char op = peek();
+            if (op == '+' || op == '-') {
+                get();
+                double rhs = parseTerm();
+                value = (op == '+') ? value + rhs : value - rhs;
+            } else {
+                return value;
+            }
+        }
+    }
+
+    // умножение и деление
+    double parseTerm() {
+        double value = parseUnary();
+        for (;;) {
+            char op = peek();
+            if (op == '*' || op == '/') {
+                get();
+                double rhs = parseUnary();
+                if (op == '/') {
+                    if (rhs == 0.0) throw std::runtime_error("Деление на ноль");
+                    value /= rhs;
+                } else {
+                    value *= rhs;
+                }
+            } else {
+                return value;
+            }
+        }
+    }
+
+    // унарный минус
+    double parseUnary() {
+        if (peek() == '-') {
+            get();
+            return -parseUnary();
+        }
+        return parsePrimary();
+    }
+
+    // число или выражение в скобках
+    double parsePrimary() {
+        if (peek() == '(') {
+            get();
+            double value = parseExpr();
+            if (get() != ')')
+                throw std::runtime_error("Нет закрывающей скобки");
+            return value;
+        }
+        return parseNumber();
+    }
+
+    double parseNumber() {
+        skipSpaces();
+        size_t start = pos;
+        while (pos < text.size() &&
+               (std::isdigit((unsigned char)text[pos]) || text[pos] == '.'))
+            ++pos;
+        if (pos == start)
+            throw std::runtime_error("Ожидалось число");
+        return std::stod(text.substr(start, pos - start));
+    }
+};
+
+// реагирует на нажатия кнопок и считает выражение
+@interface Calculator : NSObject
+@property (strong) NSTextField *display;
+@property (assign) BOOL hasResult;
+@end
+
+@implementation Calculator
+
+- (void)setText:(NSString *)value {
+    self.display.stringValue = value;
+}
+
+- (NSString *)currentText {
+    return self.display.stringValue;
+}
+
+// добавляем символ кнопки в строку
+- (void)append:(NSButton *)sender {
+    NSString *token = sender.title;
+    NSString *current = [self currentText];
+
+    // после результата оператор продолжает вычисление, цифра начинает новое
+    if (self.hasResult) {
+        BOOL isOperator = [@"+-*/" containsString:token];
+        current = isOperator ? current : @"";
+        self.hasResult = NO;
+    }
+    [self setText:[current stringByAppendingString:token]];
+}
+
+- (void)clear:(NSButton *)sender {
+    self.hasResult = NO;
+    [self setText:@""];
+}
+
+// удаляем последний символ
+- (void)backspace:(NSButton *)sender {
+    NSString *value = [self currentText];
+    if (self.hasResult) { [self clear:sender]; return; }
+    if (value.length == 0) return;
+    [self setText:[value substringToIndex:value.length - 1]];
+}
+
+// считаем выражение и показываем результат
+- (void)evaluate:(NSButton *)sender {
+    std::string expr([self currentText].UTF8String ?: "");
+    if (expr.empty()) return;
+    std::replace(expr.begin(), expr.end(), ',', '.');  // запятая как десятичный разделитель
+
+    try {
+        Parser parser(expr);
+        double result = parser.evaluate();
+
+        // целое выводим без дробной части, иначе компактно
+        NSString *out;
+        if (std::isfinite(result) && result == std::floor(result) &&
+            std::fabs(result) < 1e15) {
+            out = [NSString stringWithFormat:@"%lld", (long long)result];
+        } else {
+            out = [NSString stringWithFormat:@"%.10g", result];
+        }
+        [self setText:out];
+        self.hasResult = YES;
+    } catch (const std::exception &e) {
+        [self setText:[NSString stringWithFormat:@"Ошибка: %s", e.what()]];
+        self.hasResult = YES;
+    }
+}
+
+@end
 
 // создаём цветную кнопку с белой подписью
-static NSButton *makeButton(NSString *title, NSColor *color, CalcController *calc, SEL action) {
+static NSButton *makeButton(NSString *title, NSColor *color, Calculator *calc, SEL action) {
     NSButton *button = [[NSButton alloc] init];
     button.bordered = NO;
     button.wantsLayer = YES;
@@ -48,7 +224,7 @@ int main(int argc, const char *argv[]) {
         window.backgroundColor = [NSColor colorWithWhite:0.12 alpha:1.0];
         [window center];
 
-        CalcController *calc = [[CalcController alloc] init];
+        Calculator *calc = [[Calculator alloc] init];
 
         // поле вывода выражения и результата
         CGFloat margin = 16;
