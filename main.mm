@@ -1,4 +1,4 @@
-/*
+ /*
  5. Калькулятор
  Пользователь вводит с клавиатуры некоторое арифметическое выражение. Выражение может
  содержать: Начальный уровень: режим игры «Человек», вывод статистики по игре в файл в формате
@@ -14,6 +14,7 @@
 #include <string>
 #include <stdexcept>
 #include <cctype>
+#include <cmath>
 #include <algorithm>
 
 using namespace std;
@@ -56,6 +57,19 @@ private:
         return c;
     }
 
+    // символ корня √ занимает три байта в utf-8
+    bool matchRoot() {
+        skipSpaces();
+        if (pos + 2 < text.size() &&
+            (unsigned char)text[pos]     == 0xE2 &&
+            (unsigned char)text[pos + 1] == 0x88 &&
+            (unsigned char)text[pos + 2] == 0x9A) {
+            pos += 3;
+            return true;
+        }
+        return false;
+    }
+
     // сложение и вычитание
     double parseExpr() {
         double value = parseTerm();
@@ -84,13 +98,25 @@ private:
         return value;
     }
 
-    // унарный минус (например -5)
+    // унарный минус и корень
     double parseUnary() {
         if (peek() == '-') {
             get();
             return -parseUnary();
         }
-        return parsePrimary();
+        if (matchRoot())
+            return sqrt(parseUnary());
+        return parsePower();
+    }
+
+    // возведение в степень
+    double parsePower() {
+        double base = parsePrimary();
+        if (peek() == '^') {
+            get();
+            return pow(base, parseUnary());
+        }
+        return base;
     }
 
     // число или выражение в скобках
@@ -141,7 +167,7 @@ private:
 
     // после результата оператор продолжает вычисление, цифра начинает новое
     if (self.hasResult) {
-        BOOL isOperator = [@"+-*/" containsString:token];
+        BOOL isOperator = [@"+-*/^" containsString:token];
         current = isOperator ? current : @"";
         self.hasResult = NO;
     }
@@ -153,12 +179,14 @@ private:
     [self setText:@""];
 }
 
-// удаляем последний символ
+// удаляем последний символ (учитывая многобайтовый √)
 - (void)backspace:(NSButton *)sender {
     NSString *value = [self currentText];
     if (self.hasResult) { [self clear:sender]; return; }
     if (value.length == 0) return;
-    [self setText:[value substringToIndex:value.length - 1]];
+
+    NSRange last = [value rangeOfComposedCharacterSequenceAtIndex:value.length - 1];
+    [self setText:[value substringToIndex:last.location]];
 }
 
 // считаем выражение и показываем результат
