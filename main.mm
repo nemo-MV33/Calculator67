@@ -1,4 +1,4 @@
- /*
+/*
  5. Калькулятор
  Пользователь вводит с клавиатуры некоторое арифметическое выражение. Выражение может
  содержать: Начальный уровень: режим игры «Человек», вывод статистики по игре в файл в формате
@@ -147,6 +147,7 @@ private:
 // реагирует на нажатия кнопок и считает выражение
 @interface Calculator : NSObject
 @property (strong) NSTextField *display;
+@property (strong) NSImageView *gif;
 @property (assign) BOOL hasResult;
 @end
 
@@ -154,10 +155,23 @@ private:
 
 - (void)setText:(NSString *)value {
     self.display.stringValue = value;
+    self.gif.hidden = YES;  // гифка прячется при любом изменении строки
 }
 
 - (NSString *)currentText {
     return self.display.stringValue;
+}
+
+// для некоторых результатов показываем гифку рядом с числом
+- (void)showGifFor:(NSString *)result {
+    // сюда можно добавлять новые пары "результат -> файл гифки"
+    NSDictionary *gifs = @{ @"67": @"assets/tenor.gif",
+                            @"42": @"assets/42.gif",
+                            @"52": @"assets/52.gif" };
+    NSString *file = gifs[result];
+    if (file == nil) return;
+    self.gif.image = [[NSImage alloc] initWithContentsOfFile:file];
+    self.gif.hidden = NO;
 }
 
 // добавляем символ кнопки в строку
@@ -198,8 +212,10 @@ private:
     try {
         Parser parser(expr);
         double result = parser.evaluate();
-        [self setText:[NSString stringWithFormat:@"%g", result]];
+        NSString *out = [NSString stringWithFormat:@"%g", result];
+        [self setText:out];
         self.hasResult = YES;
+        [self showGifFor:out];  // покажем гифку, если результат особенный
     } catch (const exception &e) {
         [self setText:[NSString stringWithFormat:@"Ошибка: %s", e.what()]];
         self.hasResult = YES;
@@ -260,6 +276,16 @@ int main(int argc, const char *argv[]) {
         display.cell.lineBreakMode = NSLineBreakByTruncatingHead;
         calc.display = display;
         [window.contentView addSubview:display];
+
+        // гифка рядом с числом, чуть крупнее шрифта
+        CGFloat gifSize = 56;
+        NSImageView *gif = [[NSImageView alloc] initWithFrame:
+            NSMakeRect(margin, NSMidY(display.frame) - gifSize / 2, gifSize, gifSize)];
+        gif.animates = YES;
+        gif.imageScaling = NSImageScaleProportionallyUpOrDown;
+        gif.hidden = YES;
+        calc.gif = gif;
+        [window.contentView addSubview:gif];
 
         // цвета: цифры серые, операторы оранжевые, спец тёмные, равно зелёное
         NSColor *grey   = [NSColor colorWithWhite:0.25 alpha:1.0];
