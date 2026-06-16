@@ -162,17 +162,19 @@ private:
 
 // реагирует на нажатия кнопок и считает выражение
 @interface Calculator : NSObject
-@property (strong) NSTextField *display;  // текстовое поле сверху (что показываем)
-@property (strong) NSImageView *gif;      // картинка-гифка рядом с числом
-@property (assign) BOOL hasResult;        // true, если на экране уже готовый ответ
+@property (strong) NSTextField *display;    // текстовое поле сверху (что показываем)
+@property (strong) NSImageView *gif;        // картинка-гифка рядом с числом
+@property (strong) NSTextField *errorLabel; // строка для коротких сообщений об ошибке
+@property (assign) BOOL hasResult;          // true, если на экране уже готовый ответ
 @end
 
 @implementation Calculator
 
-// записать новый текст на экран
+// записать новый текст на экран (восстанавливает шрифт чисел)
 - (void)setText:(NSString *)value {
+    self.display.font = [NSFont monospacedDigitSystemFontOfSize:34 weight:NSFontWeightLight];
     self.display.stringValue = value;
-    self.gif.hidden = YES;  // гифка прячется при любом изменении строки
+    self.gif.hidden = YES;
 }
 
 // прочитать, что сейчас на экране
@@ -194,6 +196,61 @@ private:
     self.gif.hidden = NO;                                          // показываем
 }
 
+// показывает сообщение об ошибке валидации на 2 секунды, потом прячет
+- (void)showValidationError:(NSString *)msg {
+    self.errorLabel.stringValue = msg;
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(2.0 * NSEC_PER_SEC)),
+                   dispatch_get_main_queue(), ^{
+        if ([self.errorLabel.stringValue isEqualToString:msg])
+            self.errorLabel.stringValue = @"";
+    });
+}
+
+// если добавление token к current даст некорректную последовательность — возвращает текст ошибки,
+// иначе nil
+- (NSString *)validationError:(NSString *)token current:(NSString *)current {
+    if (current.length == 0) {
+        if ([@"+*/^" containsString:token]) return @"Нельзя начинать с оператора";
+        if ([token isEqualToString:@")"])   return @"Нечего закрывать";
+        return nil;
+    }
+
+    NSString *last = [current substringFromIndex:current.length - 1];
+
+    // валидация закрывающей скобки
+    if ([token isEqualToString:@")"]) {
+        NSInteger open = 0;
+        for (NSUInteger i = 0; i < current.length; i++) {
+            unichar c = [current characterAtIndex:i];
+            if (c == '(') open++;
+            else if (c == ')') open--;
+        }
+        if (open <= 0)                      return @"Нет открытой скобки";
+        if ([last isEqualToString:@"("])    return @"Пустые скобки";
+        if ([@"+-*/^" containsString:last]) return @"Оператор перед закрывающей скобкой";
+        return nil;
+    }
+
+    // «(» нельзя ставить сразу после числа или «)» — нет неявного умножения
+    if ([token isEqualToString:@"("] &&
+        (isdigit([last characterAtIndex:0]) || [last isEqualToString:@")"]))
+        return @"Нужен оператор перед скобкой";
+
+    // после бинарного оператора (+, *, /, ^) допустимы только унарный минус и √
+    if ([@"+*/^" containsString:last] && [@"+*/^" containsString:token])
+        return @"Два оператора подряд";
+
+    // после минуса нельзя ставить никакой оператор
+    if ([last isEqualToString:@"-"] && [@"+-*/^" containsString:token])
+        return @"Два оператора подряд";
+
+    // после √ нельзя бинарные операторы
+    if ([last isEqualToString:@"√"] && [@"+*/^" containsString:token])
+        return @"Два оператора подряд";
+
+    return nil;
+}
+
 // добавляем символ нажатой кнопки в строку
 - (void)append:(NSButton *)sender {
     NSString *token = sender.title;          // надпись на кнопке: "7", "+", "√"...
@@ -206,6 +263,13 @@ private:
         current = isOperator ? current : @"";
         self.hasResult = NO;
     }
+
+    NSString *error = [self validationError:token current:current];
+    if (error) {
+        [self showValidationError:error];
+        return;
+    }
+
     [self setText:[current stringByAppendingString:token]];
 }
 
@@ -251,7 +315,12 @@ private:
         self.hasResult = YES;
         [self showGifFor:out];  // покажем гифку, если результат особенный
     } catch (const exception &e) {
-        [self setText:[NSString stringWithFormat:@"Ошибка: %s", e.what()]];
+        // %s не гарантирует UTF-8, явно декодируем кириллицу
+        NSString *what = [NSString stringWithCString:e.what() encoding:NSUTF8StringEncoding]
+                         ?: @"неизвестная ошибка";
+        self.display.font = [NSFont systemFontOfSize:17 weight:NSFontWeightRegular];
+        self.display.stringValue = [@"Ошибка: " stringByAppendingString:what];
+        self.gif.hidden = YES;
         self.hasResult = YES;
     }
 }
@@ -312,7 +381,21 @@ int main(int argc, const char *argv[]) {
                                                         weight:NSFontWeightLight];
         display.cell.lineBreakMode = NSLineBreakByTruncatingHead;  // длинное число режем слева
         calc.display = display;
-        [window.contentView addSubview:display];        // кладём поле в окно
+        [window.contentView addSubview:display];
+
+        // строка для коротких сообщений валидации (красный текст, под дисплеем)
+        NSTextField *errorLabel = [[NSTextField alloc] initWithFrame:
+            NSMakeRect(margin, height - 116, width - 2 * margin, 14)];
+        errorLabel.editable = NO;
+        errorLabel.selectable = NO;
+        errorLabel.bordered = NO;
+        errorLabel.drawsBackground = NO;
+        errorLabel.textColor = [NSColor colorWithCalibratedRed:1.0 green:0.35 blue:0.35 alpha:1.0];
+        errorLabel.alignment = NSTextAlignmentRight;
+        errorLabel.font = [NSFont systemFontOfSize:11 weight:NSFontWeightRegular];
+        errorLabel.stringValue = @"";
+        calc.errorLabel = errorLabel;
+        [window.contentView addSubview:errorLabel];
 
         // гифка рядом с числом, чуть крупнее шрифта
         CGFloat gifSize = 75;
