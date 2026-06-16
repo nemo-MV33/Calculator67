@@ -278,7 +278,7 @@ int main(int argc, const char *argv[]) {
         [window.contentView addSubview:display];
 
         // гифка рядом с числом, чуть крупнее шрифта
-        CGFloat gifSize = 56;
+        CGFloat gifSize = 75;
         NSImageView *gif = [[NSImageView alloc] initWithFrame:
             NSMakeRect(margin, NSMidY(display.frame) - gifSize / 2, gifSize, gifSize)];
         gif.animates = YES;
