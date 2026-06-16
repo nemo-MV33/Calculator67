@@ -13,79 +13,78 @@
 #import <Cocoa/Cocoa.h>
 #include <string>
 #include <stdexcept>
-#include <cmath>
 #include <cctype>
 #include <algorithm>
+
+using namespace std;
 
 // разбор выражения рекурсивным спуском с учётом приоритетов и скобок
 class Parser {
 public:
-    explicit Parser(const std::string &text) : text(text), pos(0) {}
+    Parser(string text) {
+        this->text = text;
+        pos = 0;
+    }
 
     double evaluate() {
         double value = parseExpr();
         skipSpaces();
         if (pos != text.size())
-            throw std::runtime_error("Лишний символ в выражении");
+            throw runtime_error("Лишний символ в выражении");
         return value;
     }
 
 private:
-    const std::string text;
-    size_t pos;
+    string text;
+    int pos;
 
     void skipSpaces() {
-        while (pos < text.size() && std::isspace((unsigned char)text[pos]))
-            ++pos;
+        while (pos < text.size() && isspace(text[pos]))
+            pos++;
     }
 
     char peek() {
         skipSpaces();
-        return pos < text.size() ? text[pos] : '\0';
+        if (pos < text.size())
+            return text[pos];
+        return 0;
     }
 
     char get() {
         char c = peek();
-        if (c != '\0') ++pos;
+        if (c != 0) pos++;
         return c;
     }
 
-    // сложение и вычитание — самый низкий приоритет
+    // сложение и вычитание
     double parseExpr() {
         double value = parseTerm();
-        for (;;) {
-            char op = peek();
-            if (op == '+' || op == '-') {
-                get();
-                double rhs = parseTerm();
-                value = (op == '+') ? value + rhs : value - rhs;
-            } else {
-                return value;
-            }
+        while (peek() == '+' || peek() == '-') {
+            char op = get();
+            double rhs = parseTerm();
+            if (op == '+') value = value + rhs;
+            else           value = value - rhs;
         }
+        return value;
     }
 
     // умножение и деление
     double parseTerm() {
         double value = parseUnary();
-        for (;;) {
-            char op = peek();
-            if (op == '*' || op == '/') {
-                get();
-                double rhs = parseUnary();
-                if (op == '/') {
-                    if (rhs == 0.0) throw std::runtime_error("Деление на ноль");
-                    value /= rhs;
-                } else {
-                    value *= rhs;
-                }
+        while (peek() == '*' || peek() == '/') {
+            char op = get();
+            double rhs = parseUnary();
+            if (op == '*') {
+                value = value * rhs;
             } else {
-                return value;
+                if (rhs == 0) throw runtime_error("Деление на ноль");
+                value = value / rhs;
             }
         }
+        return value;
     }
 
-    // унарный минус
+    // унарный минус (например -5)
     double parseUnary() {
         if (peek() == '-') {
             get();
@@ -100,7 +99,7 @@ private:
             get();
             double value = parseExpr();
             if (get() != ')')
-                throw std::runtime_error("Нет закрывающей скобки");
+                throw runtime_error("Нет закрывающей скобки");
             return value;
         }
         return parseNumber();
@@ -108,13 +107,14 @@ private:
 
     double parseNumber() {
         skipSpaces();
-        size_t start = pos;
-        while (pos < text.size() &&
-               (std::isdigit((unsigned char)text[pos]) || text[pos] == '.'))
-            ++pos;
-        if (pos == start)
-            throw std::runtime_error("Ожидалось число");
-        return std::stod(text.substr(start, pos - start));
+        string number = "";
+        while (pos < text.size() && (isdigit(text[pos]) || text[pos] == '.')) {
+            number += text[pos];
+            pos++;
+        }
+        if (number == "")
+            throw runtime_error("Ожидалось число");
+        return stod(number);
     }
 };
 
@@ -163,25 +163,16 @@ private:
 
 // считаем выражение и показываем результат
 - (void)evaluate:(NSButton *)sender {
-    std::string expr([self currentText].UTF8String ?: "");
+    string expr([self currentText].UTF8String ?: "");
     if (expr.empty()) return;
-    std::replace(expr.begin(), expr.end(), ',', '.');  // запятая как десятичный разделитель
+    replace(expr.begin(), expr.end(), ',', '.');  // запятая как десятичный разделитель
 
     try {
         Parser parser(expr);
         double result = parser.evaluate();
-
-        // целое выводим без дробной части, иначе компактно
-        NSString *out;
-        if (std::isfinite(result) && result == std::floor(result) &&
-            std::fabs(result) < 1e15) {
-            out = [NSString stringWithFormat:@"%lld", (long long)result];
-        } else {
-            out = [NSString stringWithFormat:@"%.10g", result];
-        }
-        [self setText:out];
+        [self setText:[NSString stringWithFormat:@"%g", result]];
         self.hasResult = YES;
-    } catch (const std::exception &e) {
+    } catch (const exception &e) {
         [self setText:[NSString stringWithFormat:@"Ошибка: %s", e.what()]];
         self.hasResult = YES;
     }
