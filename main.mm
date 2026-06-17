@@ -182,7 +182,7 @@ private:
     return self.display.stringValue;
 }
 
-// для некоторых результатов показываем гифку рядом с числом
+// для некоторых результатов показываем GIF рядом с числом
 - (void)showGifFor:(NSString *)result {
     // словарь "результат -> файл гифки", сюда можно дописывать новые пары
     NSDictionary *gifs = @{ @"67": @"assets/tenor.gif",
@@ -206,8 +206,7 @@ private:
     });
 }
 
-// если добавление token к current даст некорректную последовательность — возвращает текст ошибки,
-// иначе nil
+// если добавление token к current даст некорректную последовательность — возвращает текст ошибки,иначе nil
 - (NSString *)validationError:(NSString *)token current:(NSString *)current {
     if (current.length == 0) {
         if ([@"+*/^" containsString:token]) return @"Нельзя начинать с оператора";
